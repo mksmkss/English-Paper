@@ -1,0 +1,2 @@
+-- EnglishPaperReader backup dump
+-- This file is regenerated from .paperapp/app.db by the pre-commit hook.
