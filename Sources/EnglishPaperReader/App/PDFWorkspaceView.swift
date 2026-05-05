@@ -39,7 +39,7 @@ private struct EmptyPDFStateView: View {
                     await workspace.promptAddPDF(to: workspace.selectedFolderID)
                 }
             } label: {
-                Label("Add PDF", systemImage: "plus.rectangle.on.folder")
+                Label("Add PDF", systemImage: "doc.badge.plus")
             }
             .buttonStyle(.borderedProminent)
         }
@@ -73,17 +73,14 @@ private struct PDFTabBar: View {
                                     .font(.caption2)
                                     .padding(4)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.borderless)
                         }
                         .frame(minWidth: 180, maxWidth: 280, alignment: .leading)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
-                        .background(workspace.currentPDFTabID == pdfID ? Color.accentColor.opacity(0.18) : Color.clear)
+                        .background(workspace.selectedPDFID == pdfID ? Color.accentColor.opacity(0.18) : Color.clear)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                         .contentShape(RoundedRectangle(cornerRadius: 8))
-                        .onTapGesture {
-                            workspace.selectPDF(pdfID)
-                        }
                     }
                 }
             }

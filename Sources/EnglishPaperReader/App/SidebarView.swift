@@ -98,33 +98,33 @@ private struct FolderTreeRow: View {
 }
 
 private struct PDFSidebarRow: View {
+    let pdf: PDFRecord
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "doc.richtext")
+                .foregroundStyle(.secondary)
+            Text(pdf.filename)
+                .lineLimit(1)
+            Spacer(minLength: 8)
+            if pdf.isMissing {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.yellow)
+            }
+        }
+        .tag(pdf.id)
+        .contextMenu {
+            PDFSidebarContextMenu(pdf: pdf)
+        }
+    }
+}
+
+private struct PDFSidebarContextMenu: View {
     @EnvironmentObject private var workspace: WorkspaceViewModel
     let pdf: PDFRecord
 
     var body: some View {
-        Button {
-            if pdf.isMissing {
-                Task {
-                    await workspace.promptRelinkPDF(pdf)
-                }
-            } else {
-                workspace.selectPDF(pdf.id)
-            }
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "doc.richtext")
-                    .foregroundStyle(.secondary)
-                Text(pdf.filename)
-                    .lineLimit(1)
-                Spacer(minLength: 8)
-                if pdf.isMissing {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.yellow)
-                }
-            }
-        }
-        .buttonStyle(.plain)
-        .contextMenu {
+        Group {
             if pdf.isMissing {
                 Button("Relink File") {
                     Task {

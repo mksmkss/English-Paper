@@ -26,9 +26,9 @@ struct WordPanelView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
 
-            TextField("Search words or readings", text: $workspace.searchText)
+            TextField("Search words or definitions", text: $workspace.searchText)
                 .textFieldStyle(.roundedBorder)
-                .help("Search registered words, pronunciations, or readings")
+                .help("Search registered words, pronunciations, or definitions")
                 .padding(.horizontal, 12)
                 .padding(.bottom, 10)
 

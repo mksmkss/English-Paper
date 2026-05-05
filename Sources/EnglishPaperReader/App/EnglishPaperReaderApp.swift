@@ -10,5 +10,8 @@ struct EnglishPaperReaderApp: App {
                 .environmentObject(appContext)
                 .frame(minWidth: 900, minHeight: 600)
         }
+        .commands {
+            AppCommands()
+        }
     }
 }

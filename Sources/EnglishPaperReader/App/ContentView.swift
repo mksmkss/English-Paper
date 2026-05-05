@@ -32,6 +32,26 @@ struct ContentView: View {
                     workspace.startupMessage = appContext.startupMessage
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .requestAddPDFCommand)) { _ in
+                Task {
+                    await workspace.promptAddPDF(to: workspace.selectedFolderID)
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .requestNewFolderCommand)) { _ in
+                workspace.requestAddFolder(parentID: workspace.selectedFolderID)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .toggleWordPanelCommand)) { _ in
+                workspace.toggleWordPanel()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .zoomInPDFCommand)) { _ in
+                workspace.zoomInPDF()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .zoomOutPDFCommand)) { _ in
+                workspace.zoomOutPDF()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .fitPDFToWindowCommand)) { _ in
+                workspace.fitPDFToWindow()
+            }
     }
 }
 

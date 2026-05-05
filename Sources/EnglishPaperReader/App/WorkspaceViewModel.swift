@@ -13,10 +13,13 @@ final class WorkspaceViewModel: ObservableObject {
     @Published var words: [Word] = []
 
     @Published var selectedFolderID: String?
-    @Published var selectedPDFID: String?
+    @Published var selectedPDFID: String? {
+        didSet {
+            syncSelectedPDFState(from: oldValue)
+        }
+    }
     @Published var selectedWordID: String?
     @Published var openPDFIDs: [String] = []
-    @Published var currentPDFTabID: String?
 
     @Published var wordSort: WordSort = .difficultyDescending
     @Published var searchText = ""
@@ -56,7 +59,8 @@ final class WorkspaceViewModel: ObservableObject {
     }
 
     var selectedPDF: PDFRecord? {
-        pdfs.first { $0.id == currentPDFTabID }
+        guard let selectedPDFID else { return nil }
+        return pdfs.first { $0.id == selectedPDFID }
     }
 
     var selectedWord: Word? {
@@ -94,16 +98,18 @@ final class WorkspaceViewModel: ObservableObject {
 
     func selectPDF(_ pdfID: String) {
         selectedPDFID = pdfID
-        if !openPDFIDs.contains(pdfID) {
-            openPDFIDs.append(pdfID)
-        }
-        currentPDFTabID = pdfID
     }
 
     func closePDFTab(_ pdfID: String) {
-        openPDFIDs.removeAll { $0 == pdfID }
-        if currentPDFTabID == pdfID {
-            currentPDFTabID = openPDFIDs.last
+        guard let closingIndex = openPDFIDs.firstIndex(of: pdfID) else { return }
+        openPDFIDs.remove(at: closingIndex)
+
+        if selectedPDFID == pdfID {
+            if openPDFIDs.indices.contains(closingIndex) {
+                selectedPDFID = openPDFIDs[closingIndex]
+            } else {
+                selectedPDFID = openPDFIDs.last
+            }
         }
     }
 
@@ -463,14 +469,29 @@ final class WorkspaceViewModel: ObservableObject {
     }
 
     private func repairSelections() {
-        if let currentPDFTabID, !pdfs.contains(where: { $0.id == currentPDFTabID }) {
-            self.currentPDFTabID = nil
+        openPDFIDs.removeAll { openID in
+            !pdfs.contains(where: { $0.id == openID })
         }
-        if currentPDFTabID == nil {
-            currentPDFTabID = openPDFIDs.last ?? pdfs.first?.id
+
+        if let selectedPDFID, !pdfs.contains(where: { $0.id == selectedPDFID }) {
+            self.selectedPDFID = nil
+        }
+
+        if selectedPDFID == nil, let firstOpenPDFID = openPDFIDs.last ?? pdfs.first?.id {
+            selectedPDFID = firstOpenPDFID
         }
         if let selectedWordID, !words.contains(where: { $0.id == selectedWordID }) {
             self.selectedWordID = nil
+        }
+    }
+
+    private func syncSelectedPDFState(from oldValue: String?) {
+        guard selectedPDFID != oldValue else { return }
+        guard let selectedPDFID else { return }
+        guard pdfs.contains(where: { $0.id == selectedPDFID }) else { return }
+
+        if !openPDFIDs.contains(selectedPDFID) {
+            openPDFIDs.append(selectedPDFID)
         }
     }
 }
@@ -592,4 +613,10 @@ extension Notification.Name {
     static let zoomInPDF = Notification.Name("zoomInPDF")
     static let zoomOutPDF = Notification.Name("zoomOutPDF")
     static let fitPDFToWindow = Notification.Name("fitPDFToWindow")
+    static let requestAddPDFCommand = Notification.Name("requestAddPDFCommand")
+    static let requestNewFolderCommand = Notification.Name("requestNewFolderCommand")
+    static let toggleWordPanelCommand = Notification.Name("toggleWordPanelCommand")
+    static let zoomInPDFCommand = Notification.Name("zoomInPDFCommand")
+    static let zoomOutPDFCommand = Notification.Name("zoomOutPDFCommand")
+    static let fitPDFToWindowCommand = Notification.Name("fitPDFToWindowCommand")
 }
