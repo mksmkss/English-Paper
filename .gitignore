@@ -10,7 +10,4 @@ DerivedData/
 .build-manual
 .build-release
 /dist
-App/AppIcon-1024.png
-App/AppIcon.iconset
-App/PapersApp.icns
 .paperapp/app.db
