@@ -19,7 +19,10 @@ rm -rf "$BUILD_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 mkdir -p "$MODULE_CACHE_DIR" "$MANUAL_BUILD_DIR/release"
 
-python3 "$ROOT_DIR/scripts/generate_app_icon.py"
+if [ ! -f "$ICON_PATH" ]; then
+  echo "App icon is missing: $ICON_PATH" >&2
+  exit 1
+fi
 
 build_with_swiftpm() {
   HOME=/private/tmp \
