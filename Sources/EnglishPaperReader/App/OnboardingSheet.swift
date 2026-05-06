@@ -15,6 +15,12 @@ struct OnboardingSheet: View {
         OnboardingStep(
             symbol: "sidebar.left",
             symbolColor: .blue,
+            title: "Choose a Library Folder",
+            description: "PapersApp stores your data in `.paperapp` inside the library folder you choose. Keep code projects and reading data in separate folders when you develop."
+        ),
+        OnboardingStep(
+            symbol: "doc.richtext",
+            symbolColor: .teal,
             title: "Open PDFs",
             description: "Import your papers from the sidebar on the left. Organize them into folders to keep your library tidy."
         ),
@@ -23,6 +29,12 @@ struct OnboardingSheet: View {
             symbolColor: .green,
             title: "Register Words",
             description: "Select any text in the PDF to open the Quick Register sheet. Add a definition and save — the word is highlighted from then on."
+        ),
+        OnboardingStep(
+            symbol: "point.3.connected.trianglepath.dotted",
+            symbolColor: .purple,
+            title: "Sync Vocabulary Data",
+            description: "GitHub sync sends only `.paperapp/backup.sql`. Your vocabulary, folders, and PDF links are preserved, but PDF files themselves stay local and may need relinking on another Mac."
         ),
         OnboardingStep(
             symbol: "rectangle.bottomthird.inset.filled",

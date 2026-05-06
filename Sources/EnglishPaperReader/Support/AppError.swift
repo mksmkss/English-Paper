@@ -5,6 +5,7 @@ enum AppError: LocalizedError {
     case statementPreparationFailed(String)
     case executionFailed(String)
     case restoreFailed(String)
+    case backupExportFailed(String)
     case invalidPDFFile(URL)
 
     var errorDescription: String? {
@@ -17,6 +18,8 @@ enum AppError: LocalizedError {
             "SQLite execution failed: \(message)"
         case .restoreFailed(let message):
             "Database restore failed: \(message)"
+        case .backupExportFailed(let message):
+            "Database backup export failed: \(message)"
         case .invalidPDFFile(let url):
             "The selected file is not a valid PDF: \(url.path)"
         }

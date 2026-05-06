@@ -65,6 +65,20 @@ struct ContentView: View {
             .onReceive(NotificationCenter.default.publisher(for: .showOnboardingCommand)) { _ in
                 isShowingOnboarding = true
             }
+            .onReceive(NotificationCenter.default.publisher(for: .changeLibraryFolderCommand)) { _ in
+                do {
+                    let store = RepositoryConfigurationStore()
+                    let selectedURL = try store.chooseLibraryURL(startingAt: appContext.paths.baseDirectory)
+                    guard let selectedURL else { return }
+                    try store.saveLibraryURL(selectedURL)
+                    workspace.presentAlert(
+                        title: "Library Folder Updated",
+                        message: "PapersApp will use `\(selectedURL.path)` after you restart the app. Your current code repository stays unchanged."
+                    )
+                } catch {
+                    workspace.presentAlert(title: "Unable to update library folder", message: error.localizedDescription)
+                }
+            }
     }
 }
 
@@ -89,7 +103,7 @@ private struct WorkspaceRootView: View {
         .toolbar {
             ToolbarItemGroup(placement: .automatic) {
                 PDFZoomToolbarControls()
-                GitHubToolbarControls(baseDirectory: appContext.paths.baseDirectory)
+                GitHubToolbarControls(paths: appContext.paths)
                 Button {
                     NotificationCenter.default.post(name: .showOnboardingCommand, object: nil)
                 } label: {

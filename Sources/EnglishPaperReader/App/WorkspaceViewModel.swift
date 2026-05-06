@@ -181,6 +181,7 @@ final class WorkspaceViewModel: ObservableObject {
                 try appContext.folderRepository.update(folder)
             }
 
+            try appContext.refreshBackup()
             editingFolderDraft = nil
             await reloadAll()
             selectedFolderID = draft.id
@@ -204,6 +205,7 @@ final class WorkspaceViewModel: ObservableObject {
         guard let appContext else { return }
         do {
             try appContext.folderRepository.delete(id: folderID)
+            try appContext.refreshBackup()
             expandedFolderIDs.remove(folderID)
             await reloadAll()
         } catch {
@@ -216,6 +218,7 @@ final class WorkspaceViewModel: ObservableObject {
             guard let url = try AppOpenPanel.choosePDF() else { return }
             guard let appContext else { return }
             _ = try appContext.pdfRepository.register(fileURL: url, folderID: folderID)
+            try appContext.refreshBackup()
             await reloadAll()
             if let inserted = try appContext.pdfRepository.fetchAll().first(where: { $0.absolutePath == url.path }) {
                 selectPDF(inserted.id)
@@ -230,6 +233,7 @@ final class WorkspaceViewModel: ObservableObject {
             guard let url = try AppOpenPanel.choosePDF() else { return }
             guard let appContext else { return }
             try appContext.pdfRepository.relink(id: pdf.id, to: url)
+            try appContext.refreshBackup()
             await reloadAll()
             selectPDF(pdf.id)
         } catch {
@@ -242,6 +246,7 @@ final class WorkspaceViewModel: ObservableObject {
         do {
             pdf.folderID = folderID
             try appContext.pdfRepository.update(pdf)
+            try appContext.refreshBackup()
             await reloadAll()
             selectedPDFID = pdfID
             selectedFolderID = folderID
@@ -257,6 +262,7 @@ final class WorkspaceViewModel: ObservableObject {
         guard let appContext else { return }
         do {
             try appContext.pdfRepository.delete(id: pdfID)
+            try appContext.refreshBackup()
             openPDFIDs.removeAll { $0 == pdfID }
             await reloadAll()
         } catch {
@@ -271,6 +277,7 @@ final class WorkspaceViewModel: ObservableObject {
         do {
             folder.parentID = parentID
             try appContext.folderRepository.update(folder)
+            try appContext.refreshBackup()
             await reloadAll()
             selectedFolderID = folderID
             if let parentID {
@@ -400,6 +407,7 @@ final class WorkspaceViewModel: ObservableObject {
             )
             try appContext.appearanceRepository.insertAndRefreshCount(appearance, wordRepository: appContext.wordRepository)
 
+            try appContext.refreshBackup()
             pendingRegistration = nil
             await reloadAll()
             selectedWordID = word.id
@@ -416,6 +424,7 @@ final class WorkspaceViewModel: ObservableObject {
         guard let appContext else { return }
         do {
             try appContext.wordRepository.delete(id: wordID)
+            try appContext.refreshBackup()
             await reloadAll()
         } catch {
             present(error)
@@ -426,6 +435,7 @@ final class WorkspaceViewModel: ObservableObject {
         guard let appContext else { return }
         do {
             try appContext.wordRepository.update(word)
+            try appContext.refreshBackup()
             await reloadWords()
         } catch {
             present(error)
@@ -440,6 +450,7 @@ final class WorkspaceViewModel: ObservableObject {
             } else {
                 try appContext.meaningRepository.update(meaning)
             }
+            try appContext.refreshBackup()
             await reloadWords()
         } catch {
             present(error)
@@ -451,6 +462,7 @@ final class WorkspaceViewModel: ObservableObject {
         do {
             try appContext.meaningRepository.delete(id: meaningID)
             try appContext.wordRepository.refreshTotalCount(wordID: wordID)
+            try appContext.refreshBackup()
             await reloadAll()
         } catch {
             present(error)
@@ -465,6 +477,7 @@ final class WorkspaceViewModel: ObservableObject {
             } else {
                 try appContext.exampleRepository.update(example)
             }
+            try appContext.refreshBackup()
             objectWillChange.send()
         } catch {
             present(error)
@@ -475,6 +488,7 @@ final class WorkspaceViewModel: ObservableObject {
         guard let appContext else { return }
         do {
             try appContext.exampleRepository.delete(id: exampleID)
+            try appContext.refreshBackup()
             objectWillChange.send()
         } catch {
             present(error)
@@ -534,16 +548,18 @@ final class WorkspaceViewModel: ObservableObject {
         isShowingError = false
     }
 
-    private func present(_ error: Error) {
-        errorTitle = "Unable to complete action"
-        errorMessage = error.localizedDescription
+    func presentAlert(title: String, message: String) {
+        errorTitle = title
+        errorMessage = message
         isShowingError = true
     }
 
+    private func present(_ error: Error) {
+        presentAlert(title: "Unable to complete action", message: error.localizedDescription)
+    }
+
     private func presentMessage(_ message: String) {
-        errorTitle = "Check your selection"
-        errorMessage = message
-        isShowingError = true
+        presentAlert(title: "Check your selection", message: message)
     }
 
     private func repairSelections() {
@@ -613,10 +629,18 @@ struct FolderNode: Identifiable {
                 }
         }
 
+        let uncategorizedPDFs = pdfs
+            .filter { $0.folderID == nil }
+            .sorted { $0.filename.localizedCaseInsensitiveCompare($1.filename) == .orderedAscending }
+
+        if uncategorizedPDFs.isEmpty {
+            return build(parentID: nil)
+        }
+
         let uncategorized = FolderNode(
             id: uncategorizedID,
             folder: nil,
-            pdfs: pdfs.filter { $0.folderID == nil }.sorted { $0.filename.localizedCaseInsensitiveCompare($1.filename) == .orderedAscending },
+            pdfs: uncategorizedPDFs,
             children: []
         )
 
@@ -705,4 +729,5 @@ extension Notification.Name {
     static let zoomOutPDFCommand = Notification.Name("zoomOutPDFCommand")
     static let fitPDFToWindowCommand = Notification.Name("fitPDFToWindowCommand")
     static let showOnboardingCommand = Notification.Name("showOnboardingCommand")
+    static let changeLibraryFolderCommand = Notification.Name("changeLibraryFolderCommand")
 }

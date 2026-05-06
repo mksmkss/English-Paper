@@ -23,9 +23,9 @@ private enum GitHubConnectionState: Equatable {
     var statusLabel: String {
         switch self {
         case .disconnected:
-            return "Connect this project to GitHub"
+            return "Connect vocabulary data sync to GitHub"
         case .connected(_, let isDirty):
-            return isDirty ? "GitHub connected, changes ready to commit" : "GitHub connected"
+            return isDirty ? "Vocabulary data changed and is ready to sync" : "Vocabulary data sync is up to date"
         }
     }
 
@@ -66,9 +66,9 @@ private final class GitHubToolbarModel: ObservableObject {
     @Published var connectDraft: GitHubConnectDraft?
     @Published var commitDraft: GitCommitDraft?
 
-    func refresh(baseDirectory: URL) async {
+    func refresh(paths: AppPaths) async {
         let result = await Task.detached(priority: .utility) {
-            GitHubToolbarModel.resolveGitHubState(baseDirectory: baseDirectory)
+            GitHubToolbarModel.resolveGitHubState(paths: paths)
         }.value
         state = result
     }
@@ -81,10 +81,10 @@ private final class GitHubToolbarModel: ObservableObject {
         commitDraft = GitCommitDraft(message: "")
     }
 
-    func connect(baseDirectory: URL, remoteURL: String) async {
+    func connect(paths: AppPaths, remoteURL: String) async {
         let sanitizedURL = remoteURL.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !sanitizedURL.isEmpty else {
-            alertMessage = "Enter a GitHub repository URL."
+            alertMessage = "Enter a GitHub repository URL for vocabulary sync."
             return
         }
 
@@ -93,14 +93,14 @@ private final class GitHubToolbarModel: ObservableObject {
         defer { isWorking = false }
 
         let result = await Task.detached(priority: .userInitiated) {
-            GitHubToolbarModel.connectAndPush(baseDirectory: baseDirectory, remoteURL: sanitizedURL)
+            GitHubToolbarModel.connectAndPush(paths: paths, remoteURL: sanitizedURL)
         }.value
 
         connectDraft = nil
-        await handle(result: result, successMessage: "GitHub connection completed.", baseDirectory: baseDirectory)
+        await handle(result: result, successMessage: "GitHub vocabulary sync connected.", paths: paths)
     }
 
-    func commitAndPush(baseDirectory: URL, message: String) async {
+    func commitAndPush(paths: AppPaths, message: String) async {
         let sanitizedMessage = message.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !sanitizedMessage.isEmpty else {
             alertMessage = "Enter a commit message."
@@ -112,20 +112,20 @@ private final class GitHubToolbarModel: ObservableObject {
         defer { isWorking = false }
 
         let result = await Task.detached(priority: .userInitiated) {
-            GitHubToolbarModel.commitAndPush(baseDirectory: baseDirectory, message: sanitizedMessage)
+            GitHubToolbarModel.commitAndPush(paths: paths, message: sanitizedMessage)
         }.value
 
         commitDraft = nil
-        await handle(result: result, successMessage: "Push completed successfully.", baseDirectory: baseDirectory)
+        await handle(result: result, successMessage: "Vocabulary data pushed successfully.", paths: paths)
     }
 
-    private func handle(result: LocalCommandResult, successMessage: String, baseDirectory: URL) async {
+    private func handle(result: LocalCommandResult, successMessage: String, paths: AppPaths) async {
         if result.exitCode == 0 {
             let output = [result.standardOutput, result.standardError]
                 .filter { !$0.isEmpty }
                 .joined(separator: "\n")
             alertMessage = output.isEmpty ? successMessage : output
-            await refresh(baseDirectory: baseDirectory)
+            await refresh(paths: paths)
         } else {
             let output = [result.standardError, result.standardOutput]
                 .filter { !$0.isEmpty }
@@ -134,70 +134,85 @@ private final class GitHubToolbarModel: ObservableObject {
         }
     }
 
-    nonisolated private static func resolveGitHubState(baseDirectory: URL) -> GitHubConnectionState {
-        let gitRoot = LocalCommandRunner.run("/usr/bin/env", arguments: ["git", "-C", baseDirectory.path, "rev-parse", "--show-toplevel"])
+    nonisolated private static func resolveGitHubState(paths: AppPaths) -> GitHubConnectionState {
+        let gitRoot = LocalCommandRunner.run("/usr/bin/env", arguments: ["git", "-C", paths.syncDirectory.path, "rev-parse", "--show-toplevel"])
         guard gitRoot.exitCode == 0 else {
             return .disconnected
         }
 
-        let remoteResult = LocalCommandRunner.run("/usr/bin/env", arguments: ["git", "-C", baseDirectory.path, "remote", "get-url", "origin"])
+        let remoteResult = LocalCommandRunner.run("/usr/bin/env", arguments: ["git", "-C", paths.syncDirectory.path, "remote", "get-url", "origin"])
         guard remoteResult.exitCode == 0, !remoteResult.standardOutput.isEmpty else {
             return .disconnected
         }
 
-        let dirtyResult = LocalCommandRunner.run("/usr/bin/env", arguments: ["git", "-C", baseDirectory.path, "status", "--porcelain"])
+        let dirtyResult = LocalCommandRunner.run(
+            "/usr/bin/env",
+            arguments: ["git", "-C", paths.syncDirectory.path, "status", "--porcelain", "--", "backup.sql"]
+        )
         let isDirty = !dirtyResult.standardOutput.isEmpty
         return .connected(remoteURL: remoteResult.standardOutput, isDirty: isDirty)
     }
 
-    nonisolated private static func connectAndPush(baseDirectory: URL, remoteURL: String) -> LocalCommandResult {
-        let repositoryExists = LocalCommandRunner.run("/usr/bin/env", arguments: ["git", "-C", baseDirectory.path, "rev-parse", "--show-toplevel"])
+    nonisolated private static func connectAndPush(paths: AppPaths, remoteURL: String) -> LocalCommandResult {
+        let backupResult = DatabaseBackupExporter(paths: paths).exportResult()
+        guard backupResult.exitCode == 0 else { return backupResult }
+
+        let repositoryExists = LocalCommandRunner.run("/usr/bin/env", arguments: ["git", "-C", paths.syncDirectory.path, "rev-parse", "--show-toplevel"])
 
         if repositoryExists.exitCode != 0 {
-            let initResult = LocalCommandRunner.run("/usr/bin/env", arguments: ["git", "-C", baseDirectory.path, "init"])
+            let initResult = LocalCommandRunner.run("/usr/bin/env", arguments: ["git", "-C", paths.syncDirectory.path, "init"])
             guard initResult.exitCode == 0 else { return initResult }
         }
 
-        let remoteExists = LocalCommandRunner.run("/usr/bin/env", arguments: ["git", "-C", baseDirectory.path, "remote", "get-url", "origin"])
+        let remoteExists = LocalCommandRunner.run("/usr/bin/env", arguments: ["git", "-C", paths.syncDirectory.path, "remote", "get-url", "origin"])
         let remoteResult: LocalCommandResult
         if remoteExists.exitCode == 0 {
-            remoteResult = LocalCommandRunner.run("/usr/bin/env", arguments: ["git", "-C", baseDirectory.path, "remote", "set-url", "origin", remoteURL])
+            remoteResult = LocalCommandRunner.run("/usr/bin/env", arguments: ["git", "-C", paths.syncDirectory.path, "remote", "set-url", "origin", remoteURL])
         } else {
-            remoteResult = LocalCommandRunner.run("/usr/bin/env", arguments: ["git", "-C", baseDirectory.path, "remote", "add", "origin", remoteURL])
+            remoteResult = LocalCommandRunner.run("/usr/bin/env", arguments: ["git", "-C", paths.syncDirectory.path, "remote", "add", "origin", remoteURL])
         }
         guard remoteResult.exitCode == 0 else { return remoteResult }
 
-        let addResult = LocalCommandRunner.run("/usr/bin/env", arguments: ["git", "-C", baseDirectory.path, "add", "-A"])
+        let addResult = LocalCommandRunner.run("/usr/bin/env", arguments: ["git", "-C", paths.syncDirectory.path, "add", "--", "backup.sql"])
         guard addResult.exitCode == 0 else { return addResult }
 
-        let statusResult = LocalCommandRunner.run("/usr/bin/env", arguments: ["git", "-C", baseDirectory.path, "status", "--porcelain"])
+        let statusResult = LocalCommandRunner.run(
+            "/usr/bin/env",
+            arguments: ["git", "-C", paths.syncDirectory.path, "status", "--porcelain", "--", "backup.sql"]
+        )
         if !statusResult.standardOutput.isEmpty {
             let commitResult = LocalCommandRunner.run(
                 "/usr/bin/env",
-                arguments: ["git", "-C", baseDirectory.path, "commit", "-m", "Initial import from PapersApp"]
+                arguments: ["git", "-C", paths.syncDirectory.path, "commit", "-m", "Initial vocabulary backup from PapersApp"]
             )
             guard commitResult.exitCode == 0 else { return commitResult }
         }
 
-        return LocalCommandRunner.run("/usr/bin/env", arguments: ["git", "-C", baseDirectory.path, "push", "-u", "origin", "HEAD"])
+        return LocalCommandRunner.run("/usr/bin/env", arguments: ["git", "-C", paths.syncDirectory.path, "push", "-u", "origin", "HEAD"])
     }
 
-    nonisolated private static func commitAndPush(baseDirectory: URL, message: String) -> LocalCommandResult {
-        let addResult = LocalCommandRunner.run("/usr/bin/env", arguments: ["git", "-C", baseDirectory.path, "add", "-A"])
+    nonisolated private static func commitAndPush(paths: AppPaths, message: String) -> LocalCommandResult {
+        let backupResult = DatabaseBackupExporter(paths: paths).exportResult()
+        guard backupResult.exitCode == 0 else { return backupResult }
+
+        let addResult = LocalCommandRunner.run("/usr/bin/env", arguments: ["git", "-C", paths.syncDirectory.path, "add", "--", "backup.sql"])
         guard addResult.exitCode == 0 else { return addResult }
 
-        let statusResult = LocalCommandRunner.run("/usr/bin/env", arguments: ["git", "-C", baseDirectory.path, "status", "--porcelain"])
+        let statusResult = LocalCommandRunner.run(
+            "/usr/bin/env",
+            arguments: ["git", "-C", paths.syncDirectory.path, "status", "--porcelain", "--", "backup.sql"]
+        )
         if !statusResult.standardOutput.isEmpty {
-            let commitResult = LocalCommandRunner.run("/usr/bin/env", arguments: ["git", "-C", baseDirectory.path, "commit", "-m", message])
+            let commitResult = LocalCommandRunner.run("/usr/bin/env", arguments: ["git", "-C", paths.syncDirectory.path, "commit", "-m", message])
             guard commitResult.exitCode == 0 else { return commitResult }
         }
 
-        return LocalCommandRunner.run("/usr/bin/env", arguments: ["git", "-C", baseDirectory.path, "push"])
+        return LocalCommandRunner.run("/usr/bin/env", arguments: ["git", "-C", paths.syncDirectory.path, "push"])
     }
 }
 
 struct GitHubToolbarControls: View {
-    let baseDirectory: URL
+    let paths: AppPaths
 
     @StateObject private var model = GitHubToolbarModel()
 
@@ -206,15 +221,15 @@ struct GitHubToolbarControls: View {
             if model.state.isConnected {
                 Button {
                     Task {
-                        await model.refresh(baseDirectory: baseDirectory)
+                        await model.refresh(paths: paths)
                     }
                 } label: {
-                    Label("GitHub status", systemImage: model.state.statusIconName)
+                    Label("Data sync status", systemImage: model.state.statusIconName)
                         .labelStyle(.iconOnly)
                         .foregroundStyle(model.state.statusColor)
                 }
                 .help(model.state.statusLabel)
-                .accessibilityLabel(Text("GitHub status"))
+                .accessibilityLabel(Text("Data sync status"))
                 .buttonStyle(.plain)
 
                 Button {
@@ -224,27 +239,27 @@ struct GitHubToolbarControls: View {
                         ProgressView()
                             .controlSize(.small)
                     } else {
-                        Label("Commit and Push", systemImage: "arrow.up.circle")
+                        Label("Sync Data", systemImage: "arrow.up.circle")
                             .labelStyle(.iconOnly)
                     }
                 }
-                .help("Create a commit and push it to GitHub")
-                .accessibilityLabel(Text("Commit and push"))
+                .help("Commit the latest vocabulary backup and push it to GitHub")
+                .accessibilityLabel(Text("Sync vocabulary data"))
                 .disabled(model.isWorking)
             } else {
                 Button {
                     model.beginConnect()
                 } label: {
-                    Label("Connect GitHub", systemImage: "point.3.connected.trianglepath.dotted")
+                    Label("Connect Data Sync", systemImage: "point.3.connected.trianglepath.dotted")
                         .labelStyle(.iconOnly)
                 }
-                .help("Connect this project to a GitHub repository")
-                .accessibilityLabel(Text("Connect GitHub repository"))
+                .help("Connect vocabulary data sync to a GitHub repository")
+                .accessibilityLabel(Text("Connect GitHub data sync"))
                 .disabled(model.isWorking)
             }
         }
-        .task(id: baseDirectory.path) {
-            await model.refresh(baseDirectory: baseDirectory)
+        .task(id: paths.syncDirectory.path) {
+            await model.refresh(paths: paths)
         }
         .sheet(item: $model.connectDraft) { draft in
             GitHubConnectSheet(
@@ -255,8 +270,8 @@ struct GitHubToolbarControls: View {
                 },
                 onSubmit: { remoteURL in
                     Task {
-                        await model.connect(baseDirectory: baseDirectory, remoteURL: remoteURL)
-                        await model.refresh(baseDirectory: baseDirectory)
+                        await model.connect(paths: paths, remoteURL: remoteURL)
+                        await model.refresh(paths: paths)
                     }
                 }
             )
@@ -270,13 +285,13 @@ struct GitHubToolbarControls: View {
                 },
                 onSubmit: { message in
                     Task {
-                        await model.commitAndPush(baseDirectory: baseDirectory, message: message)
-                        await model.refresh(baseDirectory: baseDirectory)
+                        await model.commitAndPush(paths: paths, message: message)
+                        await model.refresh(paths: paths)
                     }
                 }
             )
         }
-        .alert("GitHub", isPresented: Binding(
+        .alert("Vocabulary Sync", isPresented: Binding(
             get: { model.alertMessage != nil },
             set: { if !$0 { model.alertMessage = nil } }
         )) {
@@ -312,10 +327,10 @@ private struct GitHubConnectSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Connect GitHub Repository")
+            Text("Connect GitHub Data Sync")
                 .font(.title3.weight(.semibold))
 
-            Text("Enter the repository URL. PapersApp will initialize git if needed, add or update `origin`, then push the current project.")
+            Text("Enter a GitHub repository URL for your vocabulary data. PapersApp only syncs `.paperapp/backup.sql`. PDF files stay on this Mac, so another Mac may ask you to relink missing PDFs.")
                 .foregroundStyle(.secondary)
 
             TextField("https://github.com/owner/repo.git", text: $remoteURL)
@@ -364,13 +379,13 @@ private struct GitCommitSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Commit and Push")
+            Text("Sync Vocabulary Data")
                 .font(.title3.weight(.semibold))
 
-            Text("Enter a commit message. PapersApp will stage all changes, create a commit if needed, and push the current branch.")
+            Text("Enter a commit message. PapersApp refreshes `backup.sql`, stages only that file, creates a commit if needed, and pushes your vocabulary data to GitHub.")
                 .foregroundStyle(.secondary)
 
-            TextField("Update vocabulary workflow", text: $message)
+            TextField("Update saved vocabulary", text: $message)
                 .textFieldStyle(.roundedBorder)
                 .disabled(isWorking)
 

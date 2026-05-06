@@ -14,6 +14,10 @@ final class AppContext: ObservableObject {
 
     @Published var startupMessage: String?
 
+    func refreshBackup() throws {
+        try DatabaseBackupExporter(paths: paths).export()
+    }
+
     init(
         paths: AppPaths,
         database: SQLiteDatabase,
@@ -51,6 +55,7 @@ final class AppContext: ObservableObject {
             let appearanceRepository = AppearanceRepository(database: database)
 
             try pdfRepository.markMissingFiles()
+            try DatabaseBackupExporter(paths: paths).export()
 
             return AppContext(
                 paths: paths,

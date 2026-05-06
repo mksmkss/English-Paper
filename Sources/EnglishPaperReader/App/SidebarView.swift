@@ -315,14 +315,14 @@ private struct PDFSidebarRow: View {
                     }
                 }
                 if pdf.folderID != nil {
-                    Button("Move To Uncategorized") {
+                    Button("Remove from Folder") {
                         Task {
                             await workspace.movePDF(pdf.id, to: nil)
                         }
                     }
                 }
                 Divider()
-                Button("Delete PDF", role: .destructive) {
+                Button("Remove PDF", role: .destructive) {
                     Task {
                         await workspace.deletePDF(pdf.id)
                     }

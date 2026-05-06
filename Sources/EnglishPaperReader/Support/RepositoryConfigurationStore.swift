@@ -3,49 +3,58 @@ import Foundation
 
 struct RepositoryConfigurationStore {
     private struct Configuration: Codable {
-        let repositoryPath: String
+        let libraryPath: String?
+        let repositoryPath: String?
     }
 
     private let fileManager = FileManager.default
 
-    func loadRepositoryURL() throws -> URL? {
+    func loadLibraryURL() throws -> URL? {
         guard fileManager.fileExists(atPath: configFileURL.path) else {
             return nil
         }
 
         let data = try Data(contentsOf: configFileURL)
         let config = try JSONDecoder().decode(Configuration.self, from: data)
-        return URL(fileURLWithPath: config.repositoryPath, isDirectory: true)
+        let resolvedPath = config.libraryPath ?? config.repositoryPath
+        guard let resolvedPath, !resolvedPath.isEmpty else {
+            return nil
+        }
+        return URL(fileURLWithPath: resolvedPath, isDirectory: true)
     }
 
     @MainActor
-    func promptForRepositoryURLIfNeeded() throws -> URL {
-        if let existing = try loadRepositoryURL() {
+    func promptForLibraryURLIfNeeded() throws -> URL {
+        if let existing = try loadLibraryURL() {
             return existing
         }
 
+        let selectedURL = try chooseLibraryURL(startingAt: URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true))
+            ?? URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
+        try saveLibraryURL(selectedURL)
+        return selectedURL
+    }
+
+    @MainActor
+    func chooseLibraryURL(startingAt directoryURL: URL?) throws -> URL? {
         let panel = NSOpenPanel()
-        panel.message = "Choose the repository folder to store .paperapp data."
+        panel.message = "Choose a library folder for PapersApp data. The app stores vocabulary data in `.paperapp` inside this folder."
         panel.prompt = "Choose Folder"
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
+        panel.directoryURL = directoryURL
 
-        let selectedURL: URL
-        if panel.runModal() == .OK, let url = panel.url {
-            selectedURL = url
-        } else {
-            selectedURL = URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
+        guard panel.runModal() == .OK else {
+            return nil
         }
-
-        try saveRepositoryURL(selectedURL)
-        return selectedURL
+        return panel.url
     }
 
-    func saveRepositoryURL(_ url: URL) throws {
+    func saveLibraryURL(_ url: URL) throws {
         try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
-        let config = Configuration(repositoryPath: url.path)
+        let config = Configuration(libraryPath: url.path, repositoryPath: nil)
         let data = try JSONEncoder().encode(config)
         try data.write(to: configFileURL, options: .atomic)
     }

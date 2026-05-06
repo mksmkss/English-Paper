@@ -3,6 +3,7 @@ import Foundation
 struct AppPaths {
     let baseDirectory: URL
     let storageDirectory: URL
+    let syncDirectory: URL
     let databaseURL: URL
     let backupURL: URL
 
@@ -14,17 +15,18 @@ struct AppPaths {
             return try AppPaths(baseDirectory: URL(fileURLWithPath: configured, isDirectory: true))
         }
 
-        if let storedURL = try RepositoryConfigurationStore().loadRepositoryURL() {
+        if let storedURL = try RepositoryConfigurationStore().loadLibraryURL() {
             return try AppPaths(baseDirectory: storedURL)
         }
 
-        let chosenURL = try RepositoryConfigurationStore().promptForRepositoryURLIfNeeded()
+        let chosenURL = try RepositoryConfigurationStore().promptForLibraryURLIfNeeded()
         return try AppPaths(baseDirectory: chosenURL)
     }
 
     init(baseDirectory: URL) throws {
         self.baseDirectory = baseDirectory.standardizedFileURL
         self.storageDirectory = self.baseDirectory.appendingPathComponent(".paperapp", isDirectory: true)
+        self.syncDirectory = self.storageDirectory
         self.databaseURL = storageDirectory.appendingPathComponent("app.db", isDirectory: false)
         self.backupURL = storageDirectory.appendingPathComponent("backup.sql", isDirectory: false)
     }
