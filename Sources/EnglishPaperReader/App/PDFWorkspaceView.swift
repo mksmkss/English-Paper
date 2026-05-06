@@ -54,33 +54,16 @@ private struct PDFTabBar: View {
             HStack(spacing: 8) {
                 ForEach(workspace.openPDFIDs, id: \.self) { pdfID in
                     if let pdf = workspace.pdfs.first(where: { $0.id == pdfID }) {
-                        HStack(spacing: 6) {
-                            Button {
+                        PDFTabChip(
+                            title: pdf.filename,
+                            isSelected: workspace.selectedPDFID == pdfID,
+                            onSelect: {
                                 workspace.selectPDF(pdfID)
-                            } label: {
-                                Text(pdf.filename)
-                                    .lineLimit(1)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .contentShape(Rectangle())
-
-                            Button {
+                            },
+                            onClose: {
                                 workspace.closePDFTab(pdfID)
-                            } label: {
-                                Image(systemName: "xmark")
-                                    .font(.caption2)
-                                    .padding(4)
                             }
-                            .buttonStyle(.borderless)
-                        }
-                        .frame(minWidth: 180, maxWidth: 280, alignment: .leading)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(workspace.selectedPDFID == pdfID ? Color.accentColor.opacity(0.18) : Color.clear)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .contentShape(RoundedRectangle(cornerRadius: 8))
+                        )
                     }
                 }
             }
@@ -88,6 +71,39 @@ private struct PDFTabBar: View {
             .padding(.vertical, 8)
         }
         .background(.bar)
+    }
+}
+
+private struct PDFTabChip: View {
+    let title: String
+    let isSelected: Bool
+    let onSelect: () -> Void
+    let onClose: () -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Button(action: onSelect) {
+                Text(title)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, 12)
+                    .padding(.vertical, 8)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Button(action: onClose) {
+                Image(systemName: "xmark")
+                    .font(.caption.weight(.semibold))
+                    .frame(width: 24, height: 24)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .padding(.trailing, 4)
+        }
+        .frame(minWidth: 180, maxWidth: 280)
+        .background(isSelected ? Color.accentColor.opacity(0.18) : Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }
 

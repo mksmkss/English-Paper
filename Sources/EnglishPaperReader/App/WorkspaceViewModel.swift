@@ -20,6 +20,7 @@ final class WorkspaceViewModel: ObservableObject {
     }
     @Published var selectedWordID: String?
     @Published var openPDFIDs: [String] = []
+    @Published var expandedFolderIDs: Set<String> = []
 
     @Published var wordSort: WordSort = .difficultyDescending
     @Published var searchText = ""
@@ -117,6 +118,10 @@ final class WorkspaceViewModel: ObservableObject {
         selectedWordID = wordID
     }
 
+    func selectFolder(_ folderID: String?) {
+        selectedFolderID = folderID
+    }
+
     func toggleWordPanel() {
         isWordPanelVisible.toggle()
     }
@@ -137,28 +142,39 @@ final class WorkspaceViewModel: ObservableObject {
 
     func requestAddFolder(parentID: String?) {
         editingFolderDraft = FolderDraft(id: UUID().uuidString.lowercased(), name: "", parentID: parentID, mode: .create)
+        selectedFolderID = parentID
+        if let parentID {
+            expandedFolderIDs.insert(parentID)
+        }
     }
 
     func requestRenameFolder(_ folder: Folder) {
         editingFolderDraft = FolderDraft(id: folder.id, name: folder.name, parentID: folder.parentID, mode: .rename)
+        selectedFolderID = folder.id
+        if let parentID = folder.parentID {
+            expandedFolderIDs.insert(parentID)
+        }
     }
 
     func saveFolderDraft(_ draft: FolderDraft) async {
         guard let appContext else { return }
+        let trimmedName = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return }
         do {
             switch draft.mode {
             case .create:
                 let folder = Folder(
                     id: draft.id,
-                    name: draft.name,
+                    name: trimmedName,
                     parentID: draft.parentID,
                     createdAt: DateFormatting.iso8601String()
                 )
                 try appContext.folderRepository.insert(folder)
+                expandedFolderIDs.insert(folder.id)
             case .rename:
                 let folder = Folder(
                     id: draft.id,
-                    name: draft.name,
+                    name: trimmedName,
                     parentID: draft.parentID,
                     createdAt: folders.first(where: { $0.id == draft.id })?.createdAt ?? DateFormatting.iso8601String()
                 )
@@ -167,15 +183,28 @@ final class WorkspaceViewModel: ObservableObject {
 
             editingFolderDraft = nil
             await reloadAll()
+            selectedFolderID = draft.id
         } catch {
             present(error)
         }
+    }
+
+    func cancelFolderEditing() {
+        editingFolderDraft = nil
+    }
+
+    func beginRenameSelectedFolder() {
+        guard editingFolderDraft == nil else { return }
+        guard let selectedFolderID,
+              let folder = folders.first(where: { $0.id == selectedFolderID }) else { return }
+        requestRenameFolder(folder)
     }
 
     func deleteFolder(_ folderID: String) async {
         guard let appContext else { return }
         do {
             try appContext.folderRepository.delete(id: folderID)
+            expandedFolderIDs.remove(folderID)
             await reloadAll()
         } catch {
             present(error)
@@ -214,9 +243,58 @@ final class WorkspaceViewModel: ObservableObject {
             pdf.folderID = folderID
             try appContext.pdfRepository.update(pdf)
             await reloadAll()
+            selectedPDFID = pdfID
+            selectedFolderID = folderID
+            if let folderID {
+                expandedFolderIDs.insert(folderID)
+            }
         } catch {
             present(error)
         }
+    }
+
+    func deletePDF(_ pdfID: String) async {
+        guard let appContext else { return }
+        do {
+            try appContext.pdfRepository.delete(id: pdfID)
+            openPDFIDs.removeAll { $0 == pdfID }
+            await reloadAll()
+        } catch {
+            present(error)
+        }
+    }
+
+    func moveFolder(_ folderID: String, to parentID: String?) async {
+        guard let appContext, var folder = folders.first(where: { $0.id == folderID }) else { return }
+        guard canMoveFolder(folderID, to: parentID) else { return }
+
+        do {
+            folder.parentID = parentID
+            try appContext.folderRepository.update(folder)
+            await reloadAll()
+            selectedFolderID = folderID
+            if let parentID {
+                expandedFolderIDs.insert(parentID)
+            }
+        } catch {
+            present(error)
+        }
+    }
+
+    func canMoveFolder(_ folderID: String, to parentID: String?) -> Bool {
+        guard folderID != parentID else { return false }
+        guard let parentID else { return true }
+
+        var cursor = parentID
+        while let folder = folders.first(where: { $0.id == cursor }) {
+            if folder.id == folderID {
+                return false
+            }
+            guard let nextParentID = folder.parentID else { return true }
+            cursor = nextParentID
+        }
+
+        return true
     }
 
     func handleHover(appearance: Appearance, rectInWindow: CGRect) {
@@ -469,6 +547,10 @@ final class WorkspaceViewModel: ObservableObject {
     }
 
     private func repairSelections() {
+        if let selectedFolderID, !folders.contains(where: { $0.id == selectedFolderID }) {
+            self.selectedFolderID = nil
+        }
+
         openPDFIDs.removeAll { openID in
             !pdfs.contains(where: { $0.id == openID })
         }
@@ -509,6 +591,8 @@ struct FolderDraft: Identifiable {
 }
 
 struct FolderNode: Identifiable {
+    static let uncategorizedID = "uncategorized"
+
     let id: String
     let folder: Folder?
     let pdfs: [PDFRecord]
@@ -530,7 +614,7 @@ struct FolderNode: Identifiable {
         }
 
         let uncategorized = FolderNode(
-            id: "uncategorized",
+            id: uncategorizedID,
             folder: nil,
             pdfs: pdfs.filter { $0.folderID == nil }.sorted { $0.filename.localizedCaseInsensitiveCompare($1.filename) == .orderedAscending },
             children: []
@@ -615,8 +699,10 @@ extension Notification.Name {
     static let fitPDFToWindow = Notification.Name("fitPDFToWindow")
     static let requestAddPDFCommand = Notification.Name("requestAddPDFCommand")
     static let requestNewFolderCommand = Notification.Name("requestNewFolderCommand")
+    static let requestRenameSidebarItemCommand = Notification.Name("requestRenameSidebarItemCommand")
     static let toggleWordPanelCommand = Notification.Name("toggleWordPanelCommand")
     static let zoomInPDFCommand = Notification.Name("zoomInPDFCommand")
     static let zoomOutPDFCommand = Notification.Name("zoomOutPDFCommand")
     static let fitPDFToWindowCommand = Notification.Name("fitPDFToWindowCommand")
+    static let showOnboardingCommand = Notification.Name("showOnboardingCommand")
 }

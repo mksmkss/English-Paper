@@ -28,18 +28,18 @@ struct QuickRegisterSheet: View {
 
                     card("Register") {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Pronunciation or kana")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            TextField("Optional", text: $reading)
-                        }
-
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Meaning")
+                            Text("Definition")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             TextField("Required", text: $definition, axis: .vertical)
                                 .lineLimit(3...6)
+                        }
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Pronunciation or kana")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            TextField("Optional", text: $reading)
                         }
 
                         VStack(alignment: .leading, spacing: 6) {

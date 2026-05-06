@@ -3,6 +3,8 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject private var appContext: AppContext
     @StateObject private var workspace = WorkspaceViewModel()
+    @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
+    @State private var isShowingOnboarding = false
 
     var body: some View {
         WorkspaceRootView()
@@ -23,13 +25,18 @@ struct ContentView: View {
                 QuickRegisterSheet(selection: selection)
                     .environmentObject(workspace)
             }
-            .sheet(item: $workspace.editingFolderDraft) { draft in
-                FolderEditorSheet(draft: draft)
-                    .environmentObject(workspace)
+            .sheet(isPresented: $isShowingOnboarding) {
+                OnboardingSheet {
+                    hasSeenOnboarding = true
+                    isShowingOnboarding = false
+                }
             }
             .onAppear {
                 if workspace.startupMessage == nil {
                     workspace.startupMessage = appContext.startupMessage
+                }
+                if !hasSeenOnboarding {
+                    isShowingOnboarding = true
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: .requestAddPDFCommand)) { _ in
@@ -39,6 +46,9 @@ struct ContentView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: .requestNewFolderCommand)) { _ in
                 workspace.requestAddFolder(parentID: workspace.selectedFolderID)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .requestRenameSidebarItemCommand)) { _ in
+                workspace.beginRenameSelectedFolder()
             }
             .onReceive(NotificationCenter.default.publisher(for: .toggleWordPanelCommand)) { _ in
                 workspace.toggleWordPanel()
@@ -51,6 +61,9 @@ struct ContentView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: .fitPDFToWindowCommand)) { _ in
                 workspace.fitPDFToWindow()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .showOnboardingCommand)) { _ in
+                isShowingOnboarding = true
             }
     }
 }
@@ -77,6 +90,13 @@ private struct WorkspaceRootView: View {
             ToolbarItemGroup(placement: .automatic) {
                 PDFZoomToolbarControls()
                 GitHubToolbarControls(baseDirectory: appContext.paths.baseDirectory)
+                Button {
+                    NotificationCenter.default.post(name: .showOnboardingCommand, object: nil)
+                } label: {
+                    Label("Help", systemImage: "questionmark.circle")
+                        .labelStyle(.iconOnly)
+                }
+                .help("Show app tour")
             }
         }
     }

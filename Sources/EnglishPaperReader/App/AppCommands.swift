@@ -14,6 +14,11 @@ struct AppCommands: Commands {
                 NotificationCenter.default.post(name: .requestNewFolderCommand, object: nil)
             }
             .keyboardShortcut("n", modifiers: [.command, .shift])
+
+            Button("Rename Folder") {
+                NotificationCenter.default.post(name: .requestRenameSidebarItemCommand, object: nil)
+            }
+            .keyboardShortcut(.return, modifiers: [])
         }
 
         CommandMenu("View") {

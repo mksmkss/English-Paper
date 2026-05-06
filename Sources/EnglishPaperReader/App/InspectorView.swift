@@ -132,11 +132,11 @@ private struct MeaningEditorCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            TextField("Definition", text: $draft.definition, axis: .vertical)
             TextField("Part of speech", text: Binding(
                 get: { draft.pos ?? "" },
                 set: { draft.pos = $0.isEmpty ? nil : $0 }
             ))
-            TextField("Definition", text: $draft.definition, axis: .vertical)
             TextField("Note", text: Binding(
                 get: { draft.note ?? "" },
                 set: { draft.note = $0.isEmpty ? nil : $0 }
