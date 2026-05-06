@@ -5,6 +5,7 @@ struct ContentView: View {
     @StateObject private var workspace = WorkspaceViewModel()
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
     @State private var isShowingOnboarding = false
+    @State private var isShowingSettings = false
 
     var body: some View {
         WorkspaceRootView()
@@ -29,6 +30,11 @@ struct ContentView: View {
                 OnboardingSheet {
                     hasSeenOnboarding = true
                     isShowingOnboarding = false
+                }
+            }
+            .sheet(isPresented: $isShowingSettings) {
+                SettingsSheet(paths: appContext.paths) {
+                    isShowingSettings = false
                 }
             }
             .onAppear {
@@ -65,6 +71,9 @@ struct ContentView: View {
             .onReceive(NotificationCenter.default.publisher(for: .showOnboardingCommand)) { _ in
                 isShowingOnboarding = true
             }
+            .onReceive(NotificationCenter.default.publisher(for: .showSettingsCommand)) { _ in
+                isShowingSettings = true
+            }
     }
 }
 
@@ -90,6 +99,13 @@ private struct WorkspaceRootView: View {
             ToolbarItemGroup(placement: .automatic) {
                 PDFZoomToolbarControls()
                 GitHubToolbarControls(paths: appContext.paths)
+                Button {
+                    NotificationCenter.default.post(name: .showSettingsCommand, object: nil)
+                } label: {
+                    Label("Settings", systemImage: "gearshape")
+                        .labelStyle(.iconOnly)
+                }
+                .help("Open settings")
                 Button {
                     NotificationCenter.default.post(name: .showOnboardingCommand, object: nil)
                 } label: {

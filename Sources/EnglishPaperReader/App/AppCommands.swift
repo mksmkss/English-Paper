@@ -4,6 +4,13 @@ struct AppCommands: Commands {
     var body: some Commands {
         SidebarCommands()
 
+        CommandGroup(after: .appInfo) {
+            Button("Settings…") {
+                NotificationCenter.default.post(name: .showSettingsCommand, object: nil)
+            }
+            .keyboardShortcut(",", modifiers: [.command])
+        }
+
         CommandMenu("Library") {
             Button("Add PDF…") {
                 NotificationCenter.default.post(name: .requestAddPDFCommand, object: nil)
