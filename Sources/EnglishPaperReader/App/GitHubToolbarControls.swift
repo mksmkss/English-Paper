@@ -116,7 +116,7 @@ private final class GitHubToolbarModel: ObservableObject {
         }.value
 
         commitDraft = nil
-        await handle(result: result, successMessage: "Vocabulary data pushed successfully.", paths: paths)
+        await handle(result: result, successMessage: "Vocabulary data synced successfully.", paths: paths)
     }
 
     private func handle(result: LocalCommandResult, successMessage: String, paths: AppPaths) async {
@@ -188,7 +188,7 @@ private final class GitHubToolbarModel: ObservableObject {
             guard commitResult.exitCode == 0 else { return commitResult }
         }
 
-        return LocalCommandRunner.run("/usr/bin/env", arguments: ["git", "-C", paths.syncDirectory.path, "push", "-u", "origin", "HEAD"])
+        return pushCurrentBranch(paths: paths, forceSetUpstream: true)
     }
 
     nonisolated private static func commitAndPush(paths: AppPaths, message: String) -> LocalCommandResult {
@@ -207,7 +207,38 @@ private final class GitHubToolbarModel: ObservableObject {
             guard commitResult.exitCode == 0 else { return commitResult }
         }
 
+        return pushCurrentBranch(paths: paths, forceSetUpstream: false)
+    }
+
+    nonisolated private static func pushCurrentBranch(paths: AppPaths, forceSetUpstream: Bool) -> LocalCommandResult {
+        let remoteExists = LocalCommandRunner.run(
+            "/usr/bin/env",
+            arguments: ["git", "-C", paths.syncDirectory.path, "remote", "get-url", "origin"]
+        )
+        guard remoteExists.exitCode == 0 else {
+            return LocalCommandResult(
+                exitCode: 1,
+                standardOutput: "",
+                standardError: "GitHub remote is not configured. Connect data sync before pushing."
+            )
+        }
+
+        if forceSetUpstream || !hasUpstreamBranch(paths: paths) {
+            return LocalCommandRunner.run(
+                "/usr/bin/env",
+                arguments: ["git", "-C", paths.syncDirectory.path, "push", "--set-upstream", "origin", "HEAD"]
+            )
+        }
+
         return LocalCommandRunner.run("/usr/bin/env", arguments: ["git", "-C", paths.syncDirectory.path, "push"])
+    }
+
+    nonisolated private static func hasUpstreamBranch(paths: AppPaths) -> Bool {
+        let upstreamResult = LocalCommandRunner.run(
+            "/usr/bin/env",
+            arguments: ["git", "-C", paths.syncDirectory.path, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"]
+        )
+        return upstreamResult.exitCode == 0 && !upstreamResult.standardOutput.isEmpty
     }
 }
 
@@ -243,7 +274,7 @@ struct GitHubToolbarControls: View {
                             .labelStyle(.iconOnly)
                     }
                 }
-                .help("Commit the latest vocabulary backup and push it to GitHub")
+                .help("Commit the latest vocabulary backup and sync it to GitHub")
                 .accessibilityLabel(Text("Sync vocabulary data"))
                 .disabled(model.isWorking)
             } else {
@@ -382,7 +413,7 @@ private struct GitCommitSheet: View {
             Text("Sync Vocabulary Data")
                 .font(.title3.weight(.semibold))
 
-            Text("Enter a commit message. PapersApp refreshes `backup.sql`, stages only that file, creates a commit if needed, and pushes your vocabulary data to GitHub.")
+            Text("Enter a commit message. PapersApp refreshes `backup.sql`, stages only that file, creates a commit if needed, and syncs it to GitHub. On the first sync, the upstream branch is configured automatically.")
                 .foregroundStyle(.secondary)
 
             TextField("Update saved vocabulary", text: $message)
