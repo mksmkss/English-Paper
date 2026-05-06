@@ -43,7 +43,7 @@ This script will:
 
 - Download the latest `PapersApp-macOS.zip` release
 - Install `PapersApp.app` into `/Applications`
-- Set `~/Documents/EnglishPaperReader Library` as the default library folder
+- Use `~/Library/Application Support/EnglishPaperReader` as the app data location
 
 ### Manual download
 
@@ -69,7 +69,7 @@ Then unzip it and move `PapersApp.app` into `/Applications`.
 | 🗂 **Folder Organization** | Create folders, rename them, nest them, and move PDFs by drag and drop |
 | 🔎 **Word Search** | Search registered words by definition as well as surface form |
 | 🔗 **Appearance Jump** | Jump from a word entry back to where it appeared in the paper |
-| ☁️ **Data-only GitHub Sync** | Sync only `.paperapp/backup.sql` to GitHub |
+| ☁️ **Data-only GitHub Sync** | Sync only `backup.sql` to GitHub |
 
 ---
 
@@ -91,7 +91,7 @@ What does not get synced:
 - PDF files themselves
 - the app source code
 
-Vocabulary data is stored in `.paperapp/backup.sql` inside your library folder, and only that file is pushed to GitHub.
+Vocabulary data is stored in `~/Library/Application Support/EnglishPaperReader/backup.sql`, and only that file is pushed to GitHub.
 
 > [!IMPORTANT]
 > On another Mac, PDF absolute paths may differ, so some PDFs may need to be relinked after syncing.
@@ -126,16 +126,13 @@ Use the GitHub icon in the top-right toolbar to connect a repository for vocabul
 
 ## Storage Location
 
-Your data is stored inside the library folder:
+Your data is stored inside Application Support:
 
 ```text
-~/Documents/EnglishPaperReader Library/
-└── .paperapp/
-    ├── app.db
-    └── backup.sql
+~/Library/Application Support/EnglishPaperReader/
+├── app.db
+└── backup.sql
 ```
-
-This keeps reading data separate from your development repository.
 
 ---
 

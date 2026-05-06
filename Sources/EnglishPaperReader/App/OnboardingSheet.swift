@@ -13,10 +13,10 @@ struct OnboardingSheet: View {
             description: "Read academic papers and build your English vocabulary at the same time. Every unfamiliar word becomes a learning opportunity."
         ),
         OnboardingStep(
-            symbol: "sidebar.left",
+            symbol: "internaldrive",
             symbolColor: .blue,
-            title: "Choose a Library Folder",
-            description: "PapersApp stores your data in `.paperapp` inside the library folder you choose. Keep code projects and reading data in separate folders when you develop."
+            title: "Your Data Stays on This Mac",
+            description: "PapersApp stores its database and backup inside Application Support. You can use the app without managing folders by hand."
         ),
         OnboardingStep(
             symbol: "doc.richtext",
@@ -34,7 +34,7 @@ struct OnboardingSheet: View {
             symbol: "point.3.connected.trianglepath.dotted",
             symbolColor: .purple,
             title: "Sync Vocabulary Data",
-            description: "GitHub sync sends only `.paperapp/backup.sql`. Your vocabulary, folders, and PDF links are preserved, but PDF files themselves stay local and may need relinking on another Mac."
+            description: "GitHub sync sends only `backup.sql`. Your vocabulary, folders, and PDF links are preserved, but PDF files themselves stay local and may need relinking on another Mac."
         ),
         OnboardingStep(
             symbol: "rectangle.bottomthird.inset.filled",

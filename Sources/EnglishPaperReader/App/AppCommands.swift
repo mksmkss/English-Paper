@@ -19,12 +19,6 @@ struct AppCommands: Commands {
                 NotificationCenter.default.post(name: .requestRenameSidebarItemCommand, object: nil)
             }
             .keyboardShortcut(.return, modifiers: [])
-
-            Divider()
-
-            Button("Change Library Folder…") {
-                NotificationCenter.default.post(name: .changeLibraryFolderCommand, object: nil)
-            }
         }
 
         CommandMenu("View") {

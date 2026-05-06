@@ -729,5 +729,4 @@ extension Notification.Name {
     static let zoomOutPDFCommand = Notification.Name("zoomOutPDFCommand")
     static let fitPDFToWindowCommand = Notification.Name("fitPDFToWindowCommand")
     static let showOnboardingCommand = Notification.Name("showOnboardingCommand")
-    static let changeLibraryFolderCommand = Notification.Name("changeLibraryFolderCommand")
 }

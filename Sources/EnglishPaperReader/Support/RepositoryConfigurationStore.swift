@@ -1,4 +1,3 @@
-import AppKit
 import Foundation
 
 struct RepositoryConfigurationStore {
@@ -9,7 +8,13 @@ struct RepositoryConfigurationStore {
 
     private let fileManager = FileManager.default
 
-    func loadLibraryURL() throws -> URL? {
+    func defaultStorageURL() -> URL {
+        let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support", isDirectory: true)
+        return appSupport.appendingPathComponent("EnglishPaperReader", isDirectory: true)
+    }
+
+    func loadLegacyLibraryURL() throws -> URL? {
         guard fileManager.fileExists(atPath: configFileURL.path) else {
             return nil
         }
@@ -23,46 +28,37 @@ struct RepositoryConfigurationStore {
         return URL(fileURLWithPath: resolvedPath, isDirectory: true)
     }
 
-    @MainActor
-    func promptForLibraryURLIfNeeded() throws -> URL {
-        if let existing = try loadLibraryURL() {
-            return existing
+    func migrateLegacyStorageIfNeeded(from legacyBaseURL: URL, to destinationBaseURL: URL) throws {
+        let destinationStorageURL = destinationBaseURL.standardizedFileURL
+        let legacyCandidates = [
+            legacyBaseURL.standardizedFileURL.appendingPathComponent(".paperapp", isDirectory: true),
+            legacyBaseURL.standardizedFileURL
+        ]
+
+        guard let sourceStorageURL = legacyCandidates.first(where: { fileManager.fileExists(atPath: $0.path) }) else {
+            return
         }
 
-        let selectedURL = try chooseLibraryURL(startingAt: URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true))
-            ?? URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
-        try saveLibraryURL(selectedURL)
-        return selectedURL
-    }
+        try fileManager.createDirectory(at: destinationStorageURL, withIntermediateDirectories: true)
 
-    @MainActor
-    func chooseLibraryURL(startingAt directoryURL: URL?) throws -> URL? {
-        let panel = NSOpenPanel()
-        panel.message = "Choose a library folder for PapersApp data. The app stores vocabulary data in `.paperapp` inside this folder."
-        panel.prompt = "Choose Folder"
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.canCreateDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.directoryURL = directoryURL
-
-        guard panel.runModal() == .OK else {
-            return nil
+        for filename in ["app.db", "backup.sql"] {
+            let sourceURL = sourceStorageURL.appendingPathComponent(filename, isDirectory: false)
+            let destinationURL = destinationStorageURL.appendingPathComponent(filename, isDirectory: false)
+            guard fileManager.fileExists(atPath: sourceURL.path) else { continue }
+            guard !fileManager.fileExists(atPath: destinationURL.path) else { continue }
+            try fileManager.copyItem(at: sourceURL, to: destinationURL)
         }
-        return panel.url
     }
 
-    func saveLibraryURL(_ url: URL) throws {
-        try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
-        let config = Configuration(libraryPath: url.path, repositoryPath: nil)
-        let data = try JSONEncoder().encode(config)
-        try data.write(to: configFileURL, options: .atomic)
+    func clearLegacyLibraryURL() throws {
+        guard fileManager.fileExists(atPath: configFileURL.path) else {
+            return
+        }
+        try fileManager.removeItem(at: configFileURL)
     }
 
     private var configDirectoryURL: URL {
-        let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support", isDirectory: true)
-        return appSupport.appendingPathComponent("EnglishPaperReader", isDirectory: true)
+        defaultStorageURL()
     }
 
     private var configFileURL: URL {

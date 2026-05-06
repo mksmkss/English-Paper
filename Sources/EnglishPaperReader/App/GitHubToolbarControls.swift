@@ -330,7 +330,7 @@ private struct GitHubConnectSheet: View {
             Text("Connect GitHub Data Sync")
                 .font(.title3.weight(.semibold))
 
-            Text("Enter a GitHub repository URL for your vocabulary data. PapersApp only syncs `.paperapp/backup.sql`. PDF files stay on this Mac, so another Mac may ask you to relink missing PDFs.")
+            Text("Enter a GitHub repository URL for your vocabulary data. PapersApp only syncs `backup.sql` from Application Support. PDF files stay on this Mac, so another Mac may ask you to relink missing PDFs.")
                 .foregroundStyle(.secondary)
 
             TextField("https://github.com/owner/repo.git", text: $remoteURL)
